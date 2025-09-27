@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { body } from "express-validator";
 import {
   register,
   login,
@@ -8,15 +9,19 @@ import {
 import { auth } from "../middleware/auth.js";
 import passport from "../config/passport.js";  
 import jwt from "jsonwebtoken";
+import { validate } from "../middleware/validate.js";
+import { passwordValidator } from "../utils/passwordValidator.js";
 
 const router = Router();
+
+const VN_PHONE = /^(?:\+?84|0)(?:3|5|7|8|9)\d{8}$/;
 
 // Đăng ký
 /**
  * @openapi
  * /api/auth/register:
  *   post:
- *     summary: Đăng ký tài khoản (thêm phoneNumber)
+ *     summary: Đăng ký tài khoản
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -34,7 +39,25 @@ const router = Router();
  *     responses:
  *       201: { description: Registered }
  */
-router.post("/register", register);
+router.post(
+  "/register",
+  [
+    body("fullName").optional().isLength({ min: 2, max: 100 }).withMessage("Họ tên phải từ 2-100 ký tự"),
+    body("username")
+      .trim()
+      .notEmpty().withMessage("Username không được để trống")
+      .isLength({ min: 3, max: 32 }).withMessage("Username phải từ 3-32 ký tự")
+      .matches(/^[a-zA-Z0-9_]+$/).withMessage("Username chỉ gồm chữ, số, dấu gạch dưới"),
+    body("email").isEmail().withMessage("Email không hợp lệ").normalizeEmail(),
+    body("password").custom(passwordValidator),
+    body("phoneNumber")
+      .optional({ nullable: true, checkFalsy: true })
+      .matches(/^(?:\+?84|0)(?:3|5|7|8|9)\d{8}$/).withMessage("Số điện thoại VN không hợp lệ"),
+  ],
+  validate,
+  register
+);
+
 
 // Đăng nhập
 /**
@@ -60,7 +83,15 @@ router.post("/register", register);
  *     responses:
  *       200: { description: Login success }
  */
-router.post("/login", login);
+router.post(
+  "/login",
+  [
+    body("identifier").trim().notEmpty().withMessage("identifier bắt buộc"),
+    body("password").notEmpty().withMessage("password bắt buộc")
+  ],
+  validate,
+  login
+);
 
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
@@ -111,7 +142,12 @@ router.post("/logout", logout);
  *       200:
  *         description: New password sent
  */
-router.post("/forgot-password", resetPassword);
+router.post(
+  "/forgot-password",
+  [ body("email").isEmail().withMessage("email không hợp lệ").normalizeEmail() ],
+  validate,
+  resetPassword
+);
 
 // Lấy thông tin người dùng hiện tại (test middleware)
 /**

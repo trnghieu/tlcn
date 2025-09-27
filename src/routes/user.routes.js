@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { getMyProfile, updateMyProfile, changePassword } from "../controllers/user.controller.js";
+import { passwordValidator } from "../utils/passwordValidator.js";
+import { body } from "express-validator";
+import { validate } from "../middleware/validate.js";
+
+const VN_PHONE = /^(?:\+?84|0)(?:3|5|7|8|9)\d{8}$/;
 
 const router = Router();
 
@@ -38,7 +43,22 @@ router.get("/me", auth, getMyProfile);
  *     responses:
  *       200: { description: Updated }
  */
-router.put("/me", auth, updateMyProfile);
+router.put(
+  "/me",
+  auth,
+  [
+    body("fullName").optional().isLength({ min: 2, max: 100 }).withMessage("fullName 2-100 kí tự"),
+    body("phoneNumber").optional({ nullable: true, checkFalsy: true })
+      .matches(VN_PHONE).withMessage("Số điện thoại VN không hợp lệ"),
+    body("address").optional().isLength({ max: 255 }).withMessage("address tối đa 255 kí tự"),
+    body("avatar").optional().isURL().withMessage("avatar phải là URL hợp lệ"),
+    body("username").optional()
+      .isLength({ min: 3, max: 32 }).withMessage("username 3-32 kí tự")
+      .matches(/^[a-zA-Z0-9_]+$/).withMessage("username chỉ gồm chữ, số, _")
+  ],
+  validate,
+  updateMyProfile
+);
 
 /**
  * @openapi
@@ -60,6 +80,15 @@ router.put("/me", auth, updateMyProfile);
  *     responses:
  *       200: { description: Password changed }
  */
-router.put("/change-password", auth, changePassword);
+router.put(
+  "/change-password",
+  auth,
+  [
+    body("oldPassword").notEmpty().withMessage("oldPassword không được để trống"),
+    body("newPassword").custom(passwordValidator),
+  ],
+  validate,
+  changePassword
+);
 
 export default router;
