@@ -52,5 +52,5 @@ export const swaggerSpec = swaggerJSDoc({
     },
     tags: [{ name: "Tours", description: "Tour listing & management" }]
   },
-  apis: ["./src/routes/*.js"], // 👈 nơi chứa comment mô tả API
+  apis: ["./src/routes/*.js"],
 });

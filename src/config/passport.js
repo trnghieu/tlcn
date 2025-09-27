@@ -4,7 +4,6 @@ import { User } from "../models/User.js";
 
 function safeUsernameFromEmail(email, fallback) {
   const base = (email?.split("@")[0] || fallback || "user").toLowerCase();
-  // cắt gọn + gắn hậu tố chống trùng
   return `${base}`.slice(0, 30);
 }
 
@@ -52,10 +51,10 @@ passport.use(new GoogleStrategy(
       const created = await User.create({
         google_id: profile.id,
         fullName: profile.displayName || username,
-        email: email,                  // có thể null nếu Google không trả email (rất hiếm)
+        email: email,
         avatar: profile.photos?.[0]?.value,
         username,
-        password: null                 // 👈 quan trọng: để null
+        password: null
       });
 
       return done(null, created);

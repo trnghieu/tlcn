@@ -16,7 +16,7 @@ const router = Router();
  * @openapi
  * /api/auth/register:
  *   post:
- *     summary: Đăng ký tài khoản mới
+ *     summary: Đăng ký tài khoản (thêm phoneNumber)
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -24,18 +24,15 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [username, email, password]
  *             properties:
- *               fullName:
- *                 type: string
- *               username:
- *                 type: string
- *               email:
- *                 type: string
- *               password:
- *                 type: string
+ *               fullName: { type: string, example: "Nguyen Van A" }
+ *               username: { type: string, example: "nguyenvana" }
+ *               email: { type: string, example: "a@example.com" }
+ *               password: { type: string, example: "123456" }
+ *               phoneNumber: { type: string, example: "0912345678" }
  *     responses:
- *       201:
- *         description: User registered
+ *       201: { description: Registered }
  */
 router.post("/register", register);
 
@@ -44,7 +41,7 @@ router.post("/register", register);
  * @openapi
  * /api/auth/login:
  *   post:
- *     summary: Đăng nhập tài khoản
+ *     summary: Đăng nhập bằng username hoặc email
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -52,14 +49,16 @@ router.post("/register", register);
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [identifier, password]
  *             properties:
- *               email:
+ *               identifier:
  *                 type: string
+ *                 example: "nguyenvana"   # hoặc "a@example.com"
  *               password:
  *                 type: string
+ *                 example: "123456"
  *     responses:
- *       200:
- *         description: Login success
+ *       200: { description: Login success }
  */
 router.post("/login", login);
 

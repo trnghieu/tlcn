@@ -6,6 +6,7 @@ import session from "express-session";
 import authRouter from "./routes/auth.routes.js";
 import tourRouter from "./routes/tour.routes.js";
 import adminRouter from "./routes/admin.routes.js";
+import userRouter from "./routes/user.routes.js";
 import passport from "./config/passport.js";
 
 import swaggerUi from "swagger-ui-express";
@@ -32,6 +33,8 @@ app.use(passport.session());
 app.use("/api/auth", authRouter);
 app.use("/api/tours", tourRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/users", userRouter);
+
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
