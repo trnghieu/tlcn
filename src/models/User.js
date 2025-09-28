@@ -1,16 +1,17 @@
-import { DataTypes } from "sequelize";
-import { sequelize } from "../config/db.js";
+import mongoose from "mongoose";
 
-export const User = sequelize.define("tbl_users", {
-  userId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  google_id: { type: DataTypes.STRING, allowNull: true },
-  fullName: DataTypes.STRING,
-  username: { type: DataTypes.STRING, unique: true },
-  email:    { type: DataTypes.STRING, unique: true },
-  password: { type: DataTypes.STRING, allowNull: true },
-  avatar:   DataTypes.STRING,
-  phoneNumber: DataTypes.STRING,
-  address:  DataTypes.STRING,
-  isActive: { type: DataTypes.ENUM("y","n"), defaultValue:"y" },
-  status:   { type: DataTypes.ENUM("y","n"), defaultValue:"y" }
+const userSchema = new mongoose.Schema({
+  fullName: { type: String },
+  username: { type: String, required: true, unique: true, index: true },
+  email:    { type: String, required: true, unique: true, index: true },
+  password: { type: String },
+  phoneNumber: { type: String },
+  address:  { type: String },
+  avatar:   { type: String },
+  isActive: { type: String, enum: ["y","n"], default: "y" },
+  status:   { type: String, enum: ["y","n"], default: "y" },
+  google_id: { type: String },
+  createdDate: { type: Date, default: Date.now }
 }, { timestamps: false });
+
+export const User = mongoose.model("User", userSchema, "tbl_users");

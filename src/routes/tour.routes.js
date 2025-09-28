@@ -56,7 +56,7 @@ router.get("/", getTours);
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: string }
  *     responses:
  *       200:
  *         description: OK
@@ -106,7 +106,7 @@ router.post("/", auth, adminOnly, createTour);
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: string }
  *     requestBody:
  *       required: true
  *       content:
@@ -135,7 +135,7 @@ router.put("/:id", auth, adminOnly, updateTour);
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: integer }
+ *         schema: { type: string }
  *     responses:
  *       200:
  *         description: Tour deleted

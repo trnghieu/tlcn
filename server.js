@@ -1,10 +1,12 @@
 import "dotenv/config";
-import { connectDB } from "./src/config/db.js";
 import app from "./src/app.js";
-
-await connectDB();
+import { connectMongo } from "./src/config/mongo.js";
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`✅ Server is running at http://localhost:${PORT}`);
+
+connectMongo().then(() => {
+  app.listen(PORT, () => console.log(`✅ Server listening on ${PORT}`));
+}).catch(err => {
+  console.error("❌ Mongo connect error:", err.message);
+  process.exit(1);
 });

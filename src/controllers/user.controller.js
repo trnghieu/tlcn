@@ -1,16 +1,9 @@
-import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User.js";
 
-/**
- * GET /api/users/me
- * Lấy thông tin hồ sơ của chính mình (từ JWT)
- */
 export const getMyProfile = async (req, res) => {
   try {
-    const me = await User.findByPk(req.user.id, {
-      attributes: { exclude: ["password"] }
-    });
+    const me = await User.findById(req.user.id).select("-password").lean();
     if (!me) return res.status(404).json({ message: "User not found" });
     res.json(me);
   } catch (err) {
@@ -22,13 +15,22 @@ export const updateMyProfile = async (req, res) => {
   try {
     const { fullName, phoneNumber, address, avatar, username } = req.body;
 
-    const user = await User.findByPk(req.user.id);
+    if (
+      fullName === undefined &&
+      phoneNumber === undefined &&
+      address === undefined &&
+      avatar === undefined &&
+      username === undefined
+    ) {
+      return res.status(400).json({ message: "No fields to update" });
+    }
+
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (username && username !== user.username) {
-      const exist = await User.findOne({
-        where: { username, userId: { [Op.ne]: user.userId } }
-      });
+      // có thể thêm regex chặn ký tự lạ
+      const exist = await User.findOne({ username });
       if (exist) return res.status(400).json({ message: "Username already taken" });
       user.username = username;
     }
@@ -40,7 +42,7 @@ export const updateMyProfile = async (req, res) => {
 
     await user.save();
 
-    const safe = user.toJSON();
+    const safe = user.toObject();
     delete safe.password;
     res.json({ message: "Profile updated", user: safe });
   } catch (err) {
@@ -51,14 +53,16 @@ export const updateMyProfile = async (req, res) => {
 export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
-    if (!oldPassword || !newPassword)
+    if (!oldPassword || !newPassword) {
       return res.status(400).json({ message: "oldPassword and newPassword are required" });
+    }
 
-    const user = await User.findByPk(req.user.id);
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!user.password)
-      return res.status(400).json({ message: "This account uses Google Login; set password via reset email" });
+    if (!user.password) {
+      return res.status(400).json({ message: "This account uses Google Login" });
+    }
 
     const ok = await bcrypt.compare(oldPassword, user.password);
     if (!ok) return res.status(400).json({ message: "Old password is incorrect" });

@@ -79,7 +79,7 @@ router.post(
  *                 example: "nguyenvana"   # hoặc "a@example.com"
  *               password:
  *                 type: string
- *                 example: "123456"
+ *                 example: "Abc@1234"
  *     responses:
  *       200: { description: Login success }
  */
@@ -87,7 +87,7 @@ router.post(
   "/login",
   [
     body("identifier").trim().notEmpty().withMessage("identifier bắt buộc"),
-    body("password").notEmpty().withMessage("password bắt buộc")
+    body("password").notEmpty().withMessage("password bắt buộc").custom(passwordValidator)
   ],
   validate,
   login

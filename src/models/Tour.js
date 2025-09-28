@@ -1,18 +1,16 @@
-import { DataTypes } from "sequelize";
-import { sequelize } from "../config/db.js";
+import mongoose from "mongoose";
 
-export const Tour = sequelize.define("tbl_tours", {
-  tourId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  title: { type: DataTypes.STRING, allowNull: false },
-  time: DataTypes.STRING,
-  description: DataTypes.TEXT,
-  quantity: DataTypes.INTEGER,
-  priceAdult: DataTypes.DOUBLE,
-  priceChild: DataTypes.DOUBLE,
-  destination: DataTypes.STRING,
-  adminId: DataTypes.INTEGER,
-  startDate: DataTypes.DATE,
-  endDate: DataTypes.DATE,
-}, {
-  timestamps: false
-});
+const tourSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  time: String,
+  description: String,
+  quantity: Number,
+  priceAdult: Number,
+  priceChild: Number,
+  destination: String,
+  adminId: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+  startDate: Date,
+  endDate: Date,
+}, { timestamps: false });
+
+export const Tour = mongoose.model("Tour", tourSchema, "tbl_tours");
