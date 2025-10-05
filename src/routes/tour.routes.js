@@ -4,11 +4,71 @@ import {
   getTourById,
   createTour,
   updateTour,
-  deleteTour
+  deleteTour,
+  searchTours,
+  suggestDestinations 
 } from "../controllers/tour.controller.js";
 import { auth, adminOnly} from "../middleware/auth.js";
+import { validate } from "../middleware/validate.js";
+import { query } from "express-validator";
 
 const router = Router();
+
+
+/**
+ * @openapi
+ * /api/tours/suggest:
+ *   get:
+ *     tags: [Tours]
+ *     summary: Gợi ý địa điểm theo prefix (không cần đăng nhập)
+ *     parameters:
+ *       - in: query
+ *         name: term
+ *         schema: { type: string, example: "ha" }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 8 }
+ *     responses:
+ *       200: { description: OK }
+ */
+router.get("/suggest", suggestDestinations);
+
+// Tìm kiếm tour
+/**
+ * @openapi
+ * /api/tours/search:
+ *   get:
+ *     tags: [Tours]
+ *     summary: Tìm kiếm tour theo địa điểm, thời gian, ngân sách, từ khóa
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema: { type: string, example: "vinh ha long" }
+ *       - in: query
+ *         name: destination
+ *         schema: { type: string, example: "ha noi" }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, example: "2025-12-01" }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, example: "2025-12-31" }
+ *       - in: query
+ *         name: budgetMin
+ *         schema: { type: number, example: 100 }
+ *       - in: query
+ *         name: budgetMax
+ *         schema: { type: number, example: 500 }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, example: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 10 }
+ *     responses:
+ *       200: { description: OK }
+ */
+router.get("/search", searchTours);
 
 /**
  * @openapi
@@ -143,5 +203,6 @@ router.put("/:id", auth, adminOnly, updateTour);
  *         description: Tour not found
  */
 router.delete("/:id", auth, adminOnly, deleteTour);
+
 
 export default router;
