@@ -1,41 +1,80 @@
 import { Tour } from "../models/Tour.js";
 
 export const getTours = async (req, res) => {
-  const { page = 1, limit = 10, destination, title } = req.query;
+  const { page=1, limit=10, destination, title } = req.query;
   const filter = {};
-  if (destination) filter.destination = destination;
+  if (destination) filter.destinationSlug = new RegExp("^" + destination
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&"));
   if (title) filter.title = { $regex: title, $options: "i" };
 
+  const p = Math.max(parseInt(page,10)||1, 1);
+  const l = Math.min(parseInt(limit,10)||10, 50);
+
   const [data, total] = await Promise.all([
-    Tour.find(filter)
-        .sort({ _id: -1 })
-        .skip((+page - 1) * +limit)
-        .limit(+limit),
+    Tour.find(filter).sort({ startDate: 1, _id: 1 }).skip((p-1)*l).limit(l).lean(),
     Tour.countDocuments(filter)
   ]);
 
-  res.json({ total, page:+page, limit:+limit, data });
+  res.json({ total, page:p, limit:l, data });
 };
 
 export const getTourById = async (req, res) => {
-  const tour = await Tour.findById(req.params.id);
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Invalid tour id" });
+  const tour = await Tour.findById(id).lean();
   if (!tour) return res.status(404).json({ message: "Tour not found" });
   res.json(tour);
 };
 
 export const createTour = async (req, res) => {
-  const tour = await Tour.create(req.body);
-  res.status(201).json(tour);
+  try {
+    const body = req.body;
+
+    // Bảo đảm images có 5 ảnh (tự bổ sung nếu thiếu)
+    if (!Array.isArray(body.images)) body.images = [];
+    if (body.images.length < 5) {
+      const base = (body.destination||"tour").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g,"-");
+      while (body.images.length < 5) {
+        body.images.push(`/images/${base}/${body.images.length+1}.jpg`);
+      }
+    }
+
+    // Itinerary: cho phép theo đúng structure client gửi (đã validate ở routes nếu có)
+    const tour = await Tour.create(body);
+    res.status(201).json(tour);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 export const updateTour = async (req, res) => {
-  const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  if (!tour) return res.status(404).json({ message: "Tour not found" });
-  res.json(tour);
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Invalid tour id" });
+
+    const update = { ...req.body };
+
+    // Nếu client gửi images < 5, tự fill đủ 5
+    if (Array.isArray(update.images) && update.images.length < 5) {
+      const base = (update.destination || update.destinationSlug || "tour").toString()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g,"-");
+      while (update.images.length < 5) {
+        update.images.push(`/images/${base}/${update.images.length+1}.jpg`);
+      }
+    }
+
+    const tour = await Tour.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    if (!tour) return res.status(404).json({ message: "Tour not found" });
+    res.json(tour);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 export const deleteTour = async (req, res) => {
-  const ok = await Tour.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Invalid tour id" });
+  const ok = await Tour.findByIdAndDelete(id);
   if (!ok) return res.status(404).json({ message: "Tour not found" });
   res.json({ message: "Tour deleted" });
 };
