@@ -3,7 +3,7 @@ import { Tour } from "../models/Tour.js";
 import { Booking } from "../models/Booking.js";
 import { sendMail } from "../services/mailer.js";
 import { buildVNPayPayUrl } from "../utils/vnpay.js";
-
+import { createMoMoPayment } from "../utils/momo.js";
 
 function getClientIp(req) {
   const xf = req.headers["x-forwarded-for"];
@@ -18,8 +18,9 @@ function genCode() {
 
 export const createBooking = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
   try {
+    await session.startTransaction();
+
     const {
       tourId,
       numAdults = 1,
@@ -28,7 +29,7 @@ export const createBooking = async (req, res) => {
       email,
       phoneNumber,
       address,
-      paymentMethod = "momo", // đổi mặc định sang momo
+      paymentMethod = "momo",
       note
     } = req.body;
 
@@ -65,12 +66,15 @@ export const createBooking = async (req, res) => {
       paymentRefs: []
     }], { session });
 
+    // ✅ Kết thúc transaction ở đây (chỉ dùng cho việc tạo booking)
     await session.commitTransaction();
+
+    // ❗ Rất quan trọng: đóng session TRƯỚC khi gọi MoMo
     session.endSession();
 
-    // === Tạo payUrl MoMo ===
-    const orderId   = booking.code;          // duy nhất
-    const requestId = booking.code;          // có thể dùng cùng mã
+    // === Gọi MoMo để lấy payUrl (ngoài transaction) ===
+    const orderId   = booking.code;
+    const requestId = booking.code;
     const orderInfo = `Coc tour ${tour.title} - ${booking.code}`;
 
     const { payUrl, deeplink, error, raw } = await createMoMoPayment({
@@ -84,24 +88,38 @@ export const createBooking = async (req, res) => {
       orderId,
       requestId,
       orderInfo,
-      requestType: "captureWallet",   // hoặc "payWithATM"
-      extraData:   ""                 // nếu cần, base64(JSON)…
+      requestType: "captureWallet",
+      extraData:   ""
     });
 
     if (error) {
-      return res.status(502).json({ message: "MoMo create payment failed", error, raw });
+      // Booking đã tạo thành công; báo cho FE biết lỗi tạo thanh toán
+      return res.status(502).json({
+        message: "MoMo create payment failed",
+        error,
+        raw,
+        booking
+      });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Booking created, please pay deposit",
       booking,
-      payUrl,      // FE redirect tới URL này
-      deeplink     // nếu mở app MoMo
+      payUrl,
+      deeplink
     });
+
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    res.status(500).json({ message: err.message });
+    // Chỉ abort nếu transaction còn mở
+    try {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+    } catch (_) { /* bỏ qua */ }
+    // Đảm bảo endSession trong mọi trường hợp
+    try { session.endSession(); } catch (_) { /* bỏ qua */ }
+
+    return res.status(500).json({ message: err.message });
   }
 };
 
