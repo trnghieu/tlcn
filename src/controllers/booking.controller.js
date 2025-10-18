@@ -4,7 +4,9 @@ import { Booking } from "../models/Booking.js";
 import { sendMail } from "../services/mailer.js";
 import { buildVNPayPayUrl } from "../utils/vnpay.js";
 import { createMoMoPayment } from "../utils/momo.js";
-
+import { notifyTourConfirmed } from "../services/notify.js";
+import axios from "axios";
+import crypto from "crypto";
 function getClientIp(req) {
   const xf = req.headers["x-forwarded-for"];
   if (xf) return xf.split(",")[0].trim();
@@ -29,7 +31,6 @@ export const createBooking = async (req, res) => {
       email,
       phoneNumber,
       address,
-      paymentMethod = "momo",
       note
     } = req.body;
 
@@ -43,153 +44,197 @@ export const createBooking = async (req, res) => {
       return res.status(400).json({ message: "Tour is closed" });
     }
 
-    // snapshot giá
+    // Số khách đặt
+    const guestsRequested = (Number(numAdults) || 0) + (Number(numChildren) || 0);
+    if (guestsRequested <= 0) {
+      return res.status(400).json({ message: "Invalid guests" });
+    }
+
+    // Kiểm tra còn slot (nếu có quantity)
+    if (Number.isFinite(tour.quantity)) {
+      const after = (tour.current_guests || 0) + guestsRequested;
+      if (after > tour.quantity) {
+        return res.status(400).json({
+          message: "Not enough slots",
+          available: Math.max(0, (tour.quantity || 0) - (tour.current_guests || 0))
+        });
+      }
+    }
+
+    // Snapshot giá
     const priceAdult = tour.priceAdult ?? 0;
     const priceChild = tour.priceChild ?? Math.round(priceAdult * 0.6);
-    const totalPrice = numAdults * priceAdult + numChildren * priceChild;
+    const totalPrice = (Number(numAdults) * priceAdult) + (Number(numChildren) * priceChild);
 
-    const depositRate   = Number(process.env.BOOKING_DEPOSIT_RATE ?? 0.2);
+    // ✅ Nếu tour đã confirmed (hoặc đã đủ min_guests) ⇒ phải thanh toán 100%
+    const alreadyConfirmed = tour.status === "confirmed" || (tour.current_guests >= (tour.min_guests || 0));
+    const depositRate   = alreadyConfirmed ? 1 : Number(process.env.BOOKING_DEPOSIT_RATE ?? 0.2);
     const depositAmount = Math.round(totalPrice * depositRate);
 
+    // Tạo booking (chưa tăng current_guests — chỉ tăng khi nhận tiền lần đầu)
+    const code = "BK" + Math.random().toString(36).slice(2, 8).toUpperCase();
     const [booking] = await Booking.create([{
-      code: genCode(),
+      code,
       tourId,
       userId: req.user.id,
-      fullName, email, phoneNumber, address,
+      fullName, email, phoneNumber, address, note,
       numAdults, numChildren,
       totalPrice,
-      bookingStatus: "p",
-      depositRate, depositAmount,
+      bookingStatus: "p",            // pending gom khách / chờ thanh toán
+      depositRate, depositAmount,    // = 1 nếu tour đã confirmed
       paymentMethod: "momo",
       paidAmount: 0,
       depositPaid: false,
-      paymentRefs: []
+      paymentRefs: [],
+      // optional để bạn dễ truy vết
+      requireFullPayment: alreadyConfirmed
     }], { session });
 
-    // ✅ Kết thúc transaction ở đây (chỉ dùng cho việc tạo booking)
     await session.commitTransaction();
-
-    // ❗ Rất quan trọng: đóng session TRƯỚC khi gọi MoMo
     session.endSession();
 
-    // === Gọi MoMo để lấy payUrl (ngoài transaction) ===
-    const orderId   = booking.code;
-    const requestId = booking.code;
-    const orderInfo = `Coc tour ${tour.title} - ${booking.code}`;
+    const partnerCode = process.env.MOMO_PARTNER_CODE;
+    const accessKey   = process.env.MOMO_ACCESS_KEY;
+    const secretKey   = process.env.MOMO_SECRET_KEY;
+    const endpoint    = process.env.MOMO_API;
+    const redirectUrl = process.env.MOMO_REDIRECT_URL;
+    const ipnUrl      = process.env.MOMO_IPN_URL;    
 
-    const { payUrl, deeplink, error, raw } = await createMoMoPayment({
-      partnerCode: process.env.MOMO_PARTNER_CODE,
-      accessKey:   process.env.MOMO_ACCESS_KEY,
-      secretKey:   process.env.MOMO_SECRET_KEY,
-      momoApi:     process.env.MOMO_API,
-      redirectUrl: process.env.MOMO_REDIRECT_URL,
-      ipnUrl:      process.env.MOMO_IPN_URL,
-      amountVND:   depositAmount,
-      orderId,
-      requestId,
-      orderInfo,
+    const amount = String(depositAmount);
+    const orderId   = `${booking.code}-${Date.now()}`;
+    const requestId = orderId;
+    const orderInfo = alreadyConfirmed
+      ? `Thanh toan 100% tour ${tour.title} - ${booking.code}`
+      : `Coc tour ${tour.title} - ${booking.code}`;
+
+    const rawSignature =
+      "accessKey=" + accessKey +
+      "&amount=" + amount +
+      "&extraData=" + "" +
+      "&ipnUrl=" + ipnUrl +
+      "&orderId=" + orderId +
+      "&orderInfo=" + orderInfo +
+      "&partnerCode=" + partnerCode +
+      "&redirectUrl=" + redirectUrl +
+      "&requestId=" + requestId +
+      "&requestType=captureWallet";
+
+    const signature = crypto.createHmac("sha256", secretKey).update(rawSignature).digest("hex");
+
+    const requestBody = {
+      partnerCode, accessKey, requestId,
+      amount, orderId, orderInfo, redirectUrl, ipnUrl,
       requestType: "captureWallet",
-      extraData:   ""
+      signature, extraData: ""
+    };
+
+    const momoResp = await axios.post(endpoint, requestBody, {
+      headers: { "Content-Type": "application/json" },
+      validateStatus: () => true
     });
 
-    if (error) {
-      // Booking đã tạo thành công; báo cho FE biết lỗi tạo thanh toán
+    if (momoResp.status !== 200 || momoResp.data?.resultCode !== 0) {
       return res.status(502).json({
         message: "MoMo create payment failed",
-        error,
-        raw,
+        error: momoResp.data?.message || `HTTP ${momoResp.status}`,
+        raw: momoResp.data,
         booking
       });
     }
 
     return res.status(201).json({
-      message: "Booking created, please pay deposit",
+      message: alreadyConfirmed
+        ? "Tour đã xác nhận, vui lòng thanh toán 100%"
+        : "Booking created, please pay deposit",
       booking,
-      payUrl,
-      deeplink
+      payUrl: momoResp.data.payUrl,
+      deeplink: momoResp.data.deeplink
     });
 
   } catch (err) {
-    // Chỉ abort nếu transaction còn mở
-    try {
-      if (session.inTransaction()) {
-        await session.abortTransaction();
-      }
-    } catch (_) { /* bỏ qua */ }
-    // Đảm bảo endSession trong mọi trường hợp
-    try { session.endSession(); } catch (_) { /* bỏ qua */ }
-
+    try { if (session.inTransaction()) await session.abortTransaction(); } catch {}
+    try { session.endSession(); } catch {}
     return res.status(500).json({ message: err.message });
   }
 };
 
 
 
-export const onDepositPaid = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+
+export const onPaymentReceived = async (req, res) => {
   try {
-    const { code, amount, provider, ref } = req.body;
+    const { code, amount, provider = "momo", ref = Date.now() } = req.body;
+    const booking = await Booking.findOne({ code });
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const bk = await Booking.findOne({ code }).session(session);
-    if (!bk) return res.status(404).json({ message: "Booking not found" });
-
-    if (bk.depositPaid) {
-      await session.commitTransaction();
-      session.endSession();
-      return res.json({ message: "Already processed", booking: bk });
+    if (booking.paymentRefs?.some(p => p.ref === String(ref) && p.provider === provider)) {
+      return res.json({ message: "Already processed", booking });
     }
 
-    if (amount < bk.depositAmount) {
-      throw new Error("Deposit amount not enough");
+    const wasDeposited = Boolean(booking.depositPaid);
+    const isFirstDeposit = !wasDeposited && Number(amount) > 0;
+
+    booking.paidAmount = (booking.paidAmount || 0) + Number(amount || 0);
+    booking.paymentRefs = booking.paymentRefs || [];
+    booking.paymentRefs.push({ provider, ref: String(ref), amount: Number(amount||0), at: new Date() });
+    if (isFirstDeposit) booking.depositPaid = true;
+
+    if ((booking.paidAmount || 0) >= (booking.totalPrice || Number.MAX_SAFE_INTEGER)) {
+      booking.bookingStatus = "c";
+    }
+    await booking.save();
+
+    // ✅ GỬI EMAIL XÁC NHẬN CỌC
+    if (isFirstDeposit && booking.email) {
+      try {
+        await sendMail({
+          to: booking.email,
+          subject: `Đã nhận tiền cọc - ${booking.code}`,
+          html: `
+            <p>Xin chào ${booking.fullName || "Quý khách"},</p>
+            <p>Chúng tôi đã nhận tiền cọc cho đơn <b>${booking.code}</b> với số tiền <b>${Number(amount).toLocaleString()} VND</b>.</p>
+            <p>Tổng giá: <b>${(booking.totalPrice||0).toLocaleString()} VND</b> — Đã trả: <b>${(booking.paidAmount||0).toLocaleString()} VND</b>.</p>
+            <p>Chúng tôi sẽ thông báo ngay khi tour xác nhận khởi hành.</p>
+          `
+        });
+      } catch (e) { console.error("Send deposit mail error:", e); }
     }
 
-    // ghi nhận cọc
-    bk.paidAmount  = (bk.paidAmount || 0) + amount;
-    bk.depositPaid = true;
-    bk.paymentRefs.push({ provider, ref, amount, at: new Date() });
-    await bk.save({ session });
+    // TĂNG current_guests chỉ ở lần cọc đầu tiên
+    if (isFirstDeposit) {
+      const guestsToAdd = (booking.numAdults||0) + (booking.numChildren||0);
+      await Tour.updateOne({ _id: booking.tourId }, { $inc: { current_guests: guestsToAdd } });
+      const tour = await Tour.findById(booking.tourId);
 
-    // tăng số khách đã gom của tour
-    const guests = bk.numAdults + bk.numChildren;
-    const tour = await Tour.findByIdAndUpdate(
-      bk.tourId,
-      { $inc: { current_guests: guests } },
-      { new: true, session }
-    );
-
-    // Nếu đủ khách => chuyển tour sang confirmed (và có thể cập nhật toàn bộ booking liên quan)
-    if (tour.current_guests >= tour.min_guests && tour.status !== "confirmed") {
-      tour.status = "confirmed";
-      await tour.save({ session });
-
-      // (tuỳ chính sách) chuyển những booking đã cọc sang 'c'
-      await Booking.updateMany(
-        { tourId: tour._id, depositPaid: true, bookingStatus: "p" },
-        { $set: { bookingStatus: "c" } },
-        { session }
-      );
+        if (Number.isFinite(tour.quantity)) {
+        if ((tour.current_guests || 0) + guestsToAdd > tour.quantity) {
+            return res.status(409).json({ message: "Sold out while paying. Please contact support for refund." });
+        }
+        }
+      if (tour && (tour.current_guests||0) >= (tour.min_guests||0) && tour.status !== "confirmed") {
+        tour.status = "confirmed";
+        await tour.save();
+        await notifyTourConfirmed(tour._id); // mail “Tour đã xác nhận khởi hành”
+      }
+    } else {
+      // Nếu trả đủ → gửi mail xác nhận đủ tiền (giữ nguyên như bạn đang có)
+      if (booking.bookingStatus === "c" && booking.email) {
+        try {
+          await sendMail({
+            to: booking.email,
+            subject: `Xác nhận thanh toán đủ - ${booking.code}`,
+            html: `<p>Đơn <b>${booking.code}</b> đã thanh toán đủ. Hẹn gặp bạn tại tour!</p>`
+          });
+        } catch (e) { console.error("Send fully-paid mail error:", e); }
+      }
     }
 
-    await session.commitTransaction();
-    session.endSession();
-
-    // Gửi mail thông báo
-    if (bk.email) {
-      await sendMail({
-        to: bk.email,
-        subject: "Đã nhận tiền đặt cọc",
-        html: `<p>Đơn <b>${bk.code}</b> đã nhận cọc ${amount}. Trạng thái hiện tại: <b>${bk.bookingStatus}</b>.</p>`
-      });
-    }
-
-    res.json({ message: "Deposit recorded", booking: bk });
+    return res.json({ message: "Payment recorded", booking });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
     res.status(500).json({ message: err.message });
   }
 };
+
 
 // Lịch sử đơn của tôi
 export const myBookings = async (req, res) => {

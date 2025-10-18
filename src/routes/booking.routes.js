@@ -2,7 +2,7 @@ import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import {
   createBooking,
-  onDepositPaid,
+  onPaymentReceived,
   myBookings,
   cancelBookingByUser
 } from "../controllers/booking.controller.js";
@@ -146,7 +146,7 @@ router.post("/", auth, createBooking);
  *       400: { description: Deposit amount not enough / Bad request }
  *       404: { description: Booking not found }
  */
-router.post("/deposit/webhook", onDepositPaid);
+router.post("/deposit/webhook", onPaymentReceived);
 
 /**
  * @openapi
