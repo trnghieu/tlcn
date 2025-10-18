@@ -32,7 +32,9 @@ const tourSchema = new mongoose.Schema({
   adminId:      { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
   startDate:    { type: Date },
   endDate:      { type: Date },
-
+  min_guests:     { type: Number, default: 10 },
+  current_guests: { type: Number, default: 0 },
+  status:         { type: String, enum: ["gathering","confirmed","closed"], default: "gathering" },
   // 👇 NEW
   images:     { type: [String], default: [] }, // ảnh tổng quan tour (yêu cầu 5 ảnh)
   itinerary:  { type: [daySchema], default: [] }
