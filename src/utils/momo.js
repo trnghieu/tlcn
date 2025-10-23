@@ -17,9 +17,9 @@ export function signMoMo(rawSignature, secretKey) {
  * @param {string} p.momoApi (https://test-payment.momo.vn/v2/gateway/api/create)
  * @param {string} p.redirectUrl
  * @param {string} p.ipnUrl
- * @param {string|number} p.amountVND  (VND, KHÔNG nhân 100)
- * @param {string} p.orderId     (duy nhất, ví dụ booking.code)
- * @param {string} p.requestId   (duy nhất, thường lấy = orderId)
+ * @param {string|number} p.amountVND
+ * @param {string} p.orderId
+ * @param {string} p.requestId
  * @param {string} p.orderInfo
  * @param {string} [p.requestType="captureWallet"] // "captureWallet" | "payWithATM"
  * @param {string} [p.extraData=""]
@@ -39,7 +39,7 @@ export async function createMoMoPayment({
   requestType = "captureWallet",
   extraData = ""
 }) {
-  // Theo tài liệu MoMo v2
+
   const rawSignature =
     `accessKey=${accessKey}` +
     `&amount=${amountVND}` +

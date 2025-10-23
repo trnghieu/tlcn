@@ -112,6 +112,18 @@ export const suggestDestinations = async (req, res) => {
   }
 };
 
+export const updateLeader = async (req, res) => {
+  const { id } = req.params;
+  const { fullName, phoneNumber, note } = req.body;
+  const tour = await Tour.findByIdAndUpdate(
+    id,
+    { $set: { leader: { fullName, phoneNumber, note } } },
+    { new: true }
+  );
+  if (!tour) return res.status(404).json({ message: "Tour not found" });
+  res.json({ message: "Leader updated", tour });
+};
+
 // GET /api/tours/search?... (public)
 export const searchTours = async (req, res) => {
   try {

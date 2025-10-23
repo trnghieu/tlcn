@@ -1,51 +1,8 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { Admin } from "../models/Admin.js";
+import mongoose from "mongoose";
 import { Tour } from "../models/Tour.js";
 import { Expense } from "../models/Expense.js";
-import mongoose from "mongoose";   
-export const adminLogin = async (req, res) => {
-  try {
-    const { identifier, password } = req.body;
-    const find = identifier.includes("@")
-      ? { email: identifier.toLowerCase() }
-      : { username: identifier };
 
-    // Với Mongoose: chỉ cần { email }
-    const admin = await Admin.findOne(find);
-
-    if (!admin) return res.status(404).json({ message: "Admin not found" });
-
-    const ok = await bcrypt.compare(password, admin.password);
-    if (!ok) return res.status(400).json({ message: "Wrong password" });
-
-    // _id thay cho adminId
-    const token = jwt.sign(
-      { id: String(admin._id), type: "admin" },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES }
-    );
-
-    res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
-    res.json({
-      message: "Admin login success",
-      token,
-      admin: {
-        id: String(admin._id),
-        fullName: admin.fullName,
-        email: admin.email,
-        username: admin.username,
-      },
-    });
-    
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-/** ================================
- *  A) THEO DÕI TOUR ĐANG DIỄN RA
- *  ================================ */
+// A) Liệt kê tour đang diễn ra (đang chạy/trong ngày)
 export const listOngoingTours = async (req, res) => {
   const now = new Date();
   const onlyToday = String(req.query.onlyToday || "0") === "1";
@@ -64,9 +21,7 @@ export const listOngoingTours = async (req, res) => {
   res.json({ total: data.length, data });
 };
 
-/** ================================
- *  B) CẬP NHẬT LEADER
- *  ================================ */
+// B) Cập nhật leader
 export const updateLeader = async (req, res) => {
   const { id } = req.params;
   const { fullName, phoneNumber, note } = req.body;
@@ -82,9 +37,7 @@ export const updateLeader = async (req, res) => {
   res.json({ message: "Leader updated", tour });
 };
 
-/** ================================
- *  C) THÊM SỰ KIỆN TIMELINE
- *  ================================ */
+// C) Thêm sự kiện timeline (khởi hành, đến nơi, checkpoint, ghi chú, kết thúc)
 export const addTimelineEvent = async (req, res) => {
   const { id } = req.params;
   const { eventType, at, place, note } = req.body;
@@ -118,38 +71,27 @@ export const addTimelineEvent = async (req, res) => {
   res.json({ message: "Timeline updated", tour });
 };
 
-/** ================================
- *  D) CHI PHÍ PHÁT SINH (CRUD)
- *  ================================ */
+// D) Expenses CRUD (Admin)
 export const createExpense = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, amount, note, visibleToCustomers = true } = req.body;
+  const { id } = req.params; // tourId
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Invalid tourId" });
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid tourId" });
-    }
-    if (!title || !Number.isFinite(Number(amount))) {
-      return res.status(400).json({ message: "title & amount are required" });
-    }
-    if (!req.user?.id || !mongoose.isValidObjectId(req.user.id)) {
-      return res.status(401).json({ message: "Invalid admin ID" });
-    }
-
-    const expense = await Expense.create({
-      tourId: new mongoose.Types.ObjectId(id),
-      title,
-      amount: Number(amount),
-      occurredAt: new Date(),
-      note: note || "",
-      visibleToCustomers: Boolean(visibleToCustomers),
-      addedBy: new mongoose.Types.ObjectId(req.user.id)
-    });
-
-    res.status(201).json({ message: "Expense created", expense });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  const { title, amount, occurredAt, note, visibleToCustomers = true } = req.body;
+  if (!title || !Number.isFinite(Number(amount))) {
+    return res.status(400).json({ message: "title & amount are required" });
   }
+
+  const expense = await Expense.create({
+    tourId: id,
+    title,
+    amount: Number(amount),
+    occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+    note: note || "",
+    visibleToCustomers: Boolean(visibleToCustomers),
+    createdBy: req.user.id
+  });
+
+  res.status(201).json({ message: "Expense created", expense });
 };
 
 export const listExpensesAdmin = async (req, res) => {

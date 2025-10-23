@@ -6,6 +6,23 @@ function slugify(str = "") {
     .toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/* ------------------- Leader Schema ------------------- */
+const LeaderSchema = new mongoose.Schema({
+  fullName:    { type: String, required: true, trim: true },
+  phoneNumber: { type: String, required: true, trim: true },
+  note:        { type: String, default: "" }
+}, { _id: false });
+
+/* ------------------- Timeline Schema ------------------- */
+const TimelineEventSchema = new mongoose.Schema({
+  eventType: { type: String, enum: ["departed", "arrived", "checkpoint", "note", "finished"], required: true },
+  at:        { type: Date, required: true },            // thời điểm xảy ra
+  place:     { type: String, default: "" },             // địa điểm (tùy chọn)
+  note:      { type: String, default: "" },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true }
+}, { _id: false });
+
+/* ------------------- Itinerary Schema ------------------- */
 const segmentSchema = new mongoose.Schema({
   timeOfDay: { type: String, enum: ["morning", "afternoon", "evening"], required: true },
   title:     { type: String, required: true },
@@ -17,9 +34,10 @@ const daySchema = new mongoose.Schema({
   title:   { type: String, required: true },
   summary: { type: String, default: "" },
   segments:{ type: [segmentSchema], default: [] },
-  photos:  { type: [String], default: [] } // ảnh theo ngày (nếu muốn)
+  photos:  { type: [String], default: [] }
 }, { _id: false });
 
+/* ------------------- Tour Schema ------------------- */
 const tourSchema = new mongoose.Schema({
   title:        { type: String, required: true },
   time:         { type: String },
@@ -34,12 +52,23 @@ const tourSchema = new mongoose.Schema({
   endDate:      { type: Date },
   min_guests:     { type: Number, default: 10 },
   current_guests: { type: Number, default: 0 },
-  status:         { type: String, enum: ["gathering","confirmed","closed"], default: "gathering" },
-  // 👇 NEW
-  images:     { type: [String], default: [] }, // ảnh tổng quan tour (yêu cầu 5 ảnh)
-  itinerary:  { type: [daySchema], default: [] }
-}, { timestamps: false });
+  status: { 
+    type: String, 
+    enum: ["pending", "confirmed", "in_progress", "completed", "closed"], 
+    default: "pending" 
+  },
 
+  leader:     { type: LeaderSchema, default: null },
+  timeline:   { type: [TimelineEventSchema], default: [] },
+  departedAt: Date,
+  arrivedAt:  Date,
+  finishedAt: Date,
+
+  images:     { type: [String], default: [] },
+  itinerary:  { type: [daySchema], default: [] }
+}, { timestamps: true });
+
+/* ------------------- Hooks ------------------- */
 // Tự tạo slug khi save
 tourSchema.pre("save", function(next) {
   if (this.isModified("destination") || !this.destinationSlug) {
@@ -58,8 +87,12 @@ tourSchema.pre("findOneAndUpdate", function(next) {
   next();
 });
 
+/* ------------------- Indexes ------------------- */
+tourSchema.index({ status: 1, startDate: 1, endDate: 1 });
+tourSchema.index({ "leader.phoneNumber": 1 });
 tourSchema.index({ startDate: 1, endDate: 1 });
 tourSchema.index({ priceAdult: 1, priceChild: 1 });
 tourSchema.index({ title: "text", description: "text", destination: "text" });
 
+/* ------------------- Export ------------------- */
 export const Tour = mongoose.model("Tour", tourSchema, "tbl_tours");

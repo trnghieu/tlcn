@@ -50,7 +50,7 @@ export const createBooking = async (req, res) => {
       return res.status(400).json({ message: "Invalid guests" });
     }
 
-    // Kiểm tra còn slot (nếu có quantity)
+    // Kiểm tra còn slot
     if (Number.isFinite(tour.quantity)) {
       const after = (tour.current_guests || 0) + guestsRequested;
       if (after > tour.quantity) {
@@ -61,17 +61,14 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    // Snapshot giá
     const priceAdult = tour.priceAdult ?? 0;
     const priceChild = tour.priceChild ?? Math.round(priceAdult * 0.6);
     const totalPrice = (Number(numAdults) * priceAdult) + (Number(numChildren) * priceChild);
 
-    // ✅ Nếu tour đã confirmed (hoặc đã đủ min_guests) ⇒ phải thanh toán 100%
     const alreadyConfirmed = tour.status === "confirmed" || (tour.current_guests >= (tour.min_guests || 0));
     const depositRate   = alreadyConfirmed ? 1 : Number(process.env.BOOKING_DEPOSIT_RATE ?? 0.2);
     const depositAmount = Math.round(totalPrice * depositRate);
 
-    // Tạo booking (chưa tăng current_guests — chỉ tăng khi nhận tiền lần đầu)
     const code = "BK" + Math.random().toString(36).slice(2, 8).toUpperCase();
     const [booking] = await Booking.create([{
       code,
@@ -80,13 +77,12 @@ export const createBooking = async (req, res) => {
       fullName, email, phoneNumber, address, note,
       numAdults, numChildren,
       totalPrice,
-      bookingStatus: "p",            // pending gom khách / chờ thanh toán
-      depositRate, depositAmount,    // = 1 nếu tour đã confirmed
+      bookingStatus: "p",
+      depositRate, depositAmount,
       paymentMethod: "momo",
       paidAmount: 0,
       depositPaid: false,
       paymentRefs: [],
-      // optional để bạn dễ truy vết
       requireFullPayment: alreadyConfirmed
     }], { session });
 
@@ -184,7 +180,6 @@ export const onPaymentReceived = async (req, res) => {
     }
     await booking.save();
 
-    // ✅ GỬI EMAIL XÁC NHẬN CỌC
     if (isFirstDeposit && booking.email) {
       try {
         await sendMail({
@@ -200,7 +195,7 @@ export const onPaymentReceived = async (req, res) => {
       } catch (e) { console.error("Send deposit mail error:", e); }
     }
 
-    // TĂNG current_guests chỉ ở lần cọc đầu tiên
+    // TĂNG current_guests
     if (isFirstDeposit) {
       const guestsToAdd = (booking.numAdults||0) + (booking.numChildren||0);
       await Tour.updateOne({ _id: booking.tourId }, { $inc: { current_guests: guestsToAdd } });
@@ -214,10 +209,10 @@ export const onPaymentReceived = async (req, res) => {
       if (tour && (tour.current_guests||0) >= (tour.min_guests||0) && tour.status !== "confirmed") {
         tour.status = "confirmed";
         await tour.save();
-        await notifyTourConfirmed(tour._id); // mail “Tour đã xác nhận khởi hành”
+        await notifyTourConfirmed(tour._id);
       }
     } else {
-      // Nếu trả đủ → gửi mail xác nhận đủ tiền (giữ nguyên như bạn đang có)
+
       if (booking.bookingStatus === "c" && booking.email) {
         try {
           await sendMail({
@@ -236,7 +231,7 @@ export const onPaymentReceived = async (req, res) => {
 };
 
 
-// Lịch sử đơn của tôi
+// Lịch sử đơn
 export const myBookings = async (req, res) => {
   const page  = Math.max(parseInt(req.query.page || "1", 10), 1);
   const limit = Math.min(parseInt(req.query.limit || "10", 10), 50);
@@ -253,7 +248,6 @@ export const myBookings = async (req, res) => {
   res.json({ total, page, limit, data: rows });
 };
 
-// Người dùng hủy khi chưa confirm (tuỳ chính sách refund)
 export const cancelBookingByUser = async (req, res) => {
   const { code } = req.params;
   const bk = await Booking.findOne({ code });
@@ -262,7 +256,6 @@ export const cancelBookingByUser = async (req, res) => {
     return res.status(400).json({ message: "Only pending bookings can be canceled" });
   }
 
-  // Nếu đã cọc rồi thì xử lý theo chính sách (hoàn cọc hay mất cọc...). Ở đây giả sử hoàn cọc thủ công.
   bk.bookingStatus = "x";
   await bk.save();
 
