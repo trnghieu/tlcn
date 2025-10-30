@@ -53,15 +53,14 @@ export const login = async (req, res) => {
     if (!ok) return res.status(400).json({ message: "Wrong password" });
 
     const token = jwt.sign(
-      { id: String(user._id), type: "user" },
+      { id: String(user._id), role: "user" }, // đổi type -> role
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES } // ví dụ: "7d"
+      { expiresIn: process.env.JWT_EXPIRES || "7d" }
     );
-
-    // nếu deploy HTTPS, cân nhắc sameSite:"none", secure:true
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
     });
 
     res.json({ message: "Login success", token });

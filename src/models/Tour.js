@@ -47,7 +47,6 @@ const tourSchema = new mongoose.Schema({
   priceChild:   { type: Number },
   destination:  { type: String },
   destinationSlug: { type: String, index: true },
-  adminId:      { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
   startDate:    { type: Date },
   endDate:      { type: Date },
   min_guests:     { type: Number, default: 10 },
