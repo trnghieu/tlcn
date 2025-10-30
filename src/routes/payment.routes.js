@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyMoMoIPN } from "../utils/momo.js";
 import { onPaymentReceived } from "../controllers/booking.controller.js";
 import { auth } from "../middleware/auth.js";
+import { vnpReturn, vnpIpn } from "../controllers/payment.controller.js";
 const router = Router();
 
 /**
@@ -108,5 +109,37 @@ router.post("/momo/create-remaining", auth, async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+/**
+ * @openapi
+ * /api/payment/vnpay/return:
+ *   get:
+ *     tags: [Payment]
+ *     summary: VNPAY return URL (browser)
+ *     parameters:
+ *       - in: query
+ *         name: vnp_TxnRef
+ *         schema: { type: string }
+ *     responses:
+ *       302:
+ *         description: Redirect về FE với status
+ */
+router.get("/vnpay/return", vnpReturn);
+
+/**
+ * @openapi
+ * /api/payment/vnpay/ipn:
+ *   get:
+ *     tags: [Payment]
+ *     summary: VNPAY IPN URL (server-to-server)
+ *     parameters:
+ *       - in: query
+ *         name: vnp_TxnRef
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: JSON { RspCode, Message }
+ */
+router.get("/vnpay/ipn", vnpIpn);
 
 export default router;

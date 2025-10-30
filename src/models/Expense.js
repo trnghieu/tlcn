@@ -9,7 +9,7 @@ const ExpenseSchema = new mongoose.Schema({
   note:   { type: String, default: "" },
   visibleToCustomers: { type: Boolean, default: true },
 
-  addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true }
+  addedBy: { type: mongoose.Schema.Types.ObjectId, required: true }
 }, { timestamps: true });
 
 ExpenseSchema.index({ tourId: 1 });

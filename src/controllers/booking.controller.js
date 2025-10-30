@@ -7,16 +7,13 @@ import { createMoMoPayment } from "../utils/momo.js";
 import { notifyTourConfirmed } from "../services/notify.js";
 import axios from "axios";
 import crypto from "crypto";
-function getClientIp(req) {
-  const xf = req.headers["x-forwarded-for"];
-  if (xf) return xf.split(",")[0].trim();
-  return req.socket?.remoteAddress || "127.0.0.1";
-}
 
-function genCode() {
-  return "BK" + Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
+const genCode = () => "BKG" + Math.random().toString(36).slice(2, 8).toUpperCase();
+const clientIP = (req) =>
+  req.headers["x-forwarded-for"]?.split(",")[0] ||
+  req.connection?.remoteAddress ||
+  req.socket?.remoteAddress ||
+  "127.0.0.1";
 
 export const createBooking = async (req, res) => {
   const session = await mongoose.startSession();

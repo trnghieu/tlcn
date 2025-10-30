@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { adminLogin } from "../controllers/admin.controller.js";
-import { Admin } from "../models/Admin.js";
 import { auth, adminOnly } from "../middleware/auth.js";
 import {
+  adminLogin,
   listOngoingTours,
   updateLeader,
   addTimelineEvent,
@@ -11,32 +10,37 @@ import {
   updateExpense,
   deleteExpense
 } from "../controllers/admin.controller.js";
+
 const router = Router();
 
 /**
  * @openapi
  * /api/admin/login:
  *   post:
- *     summary: Đăng nhập bằng username hoặc email
- *     tags: [Admin]
+ *     tags:
+ *       - Admin
+ *     summary: Đăng nhập admin bằng username hoặc email
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [identifier, password]
+ *             required:
+ *               - identifier
+ *               - password
  *             properties:
  *               identifier:
  *                 type: string
- *                 example: "admin"   # hoặc "a@example.com"
+ *                 description: Username hoặc email
+ *                 example: admin
  *               password:
  *                 type: string
- *                 example: "Abc@1234"
+ *                 example: Abc@1234
  *     responses:
- *       200: { description: Login success }
+ *       200:
+ *         description: Login success
  */
-
 router.post("/login", adminLogin);
 
 /**
@@ -45,7 +49,7 @@ router.post("/login", adminLogin);
  *   get:
  *     tags:
  *       - Admin
- *     summary: Danh sách tour đang diễn ra
+ *     summary: Danh sách tour đang diễn ra (hoặc confirmed sắp chạy)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -55,12 +59,11 @@ router.post("/login", adminLogin);
  *           type: integer
  *           enum: [0, 1]
  *           default: 0
- *         description: 1 = chỉ tour có now nằm trong [startDate, endDate]
+ *         description: 1 = chỉ lấy tour mà thời điểm hiện tại nằm trong khoảng [startDate, endDate]
  *     responses:
  *       200:
  *         description: OK
  */
-
 router.get("/tours/ongoing", auth, adminOnly, listOngoingTours);
 
 /**
@@ -69,7 +72,11 @@ router.get("/tours/ongoing", auth, adminOnly, listOngoingTours);
  *   patch:
  *     tags:
  *       - Admin
- *     summary: Cập nhật người dẫn tour (leader)
+ *     summary: Gán/cập nhật leader cho tour
+ *     description: |
+ *       Có 2 cách:
+ *       1) Gán leader theo `leaderId` (ObjectId tham chiếu collection tbl_leader) → hệ thống sẽ snapshot `leader{fullName, phoneNumber}` theo dữ liệu Leader hiện tại.
+ *       2) Hoặc cập nhật nhanh snapshot `leader` (không đổi leaderId) bằng `fullName` + `phoneNumber` (+ `note`).
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -78,24 +85,38 @@ router.get("/tours/ongoing", auth, adminOnly, listOngoingTours);
  *         required: true
  *         schema:
  *           type: string
- *           example: "68f30a0c9a9e2d9f3f8b5c10"
+ *         description: Tour ObjectId (24 hex)
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [fullName, phoneNumber]
- *             properties:
- *               fullName:
- *                 type: string
- *                 example: "Nguyễn Văn B"
- *               phoneNumber:
- *                 type: string
- *                 example: "0901234567"
- *               note:
- *                 type: string
- *                 example: "Leader miền Bắc"
+ *             oneOf:
+ *               - type: object
+ *                 required:
+ *                   - leaderId
+ *                 properties:
+ *                   leaderId:
+ *                     type: string
+ *                     description: Leader ObjectId
+ *                     example: 68f30a0c9a9e2d9f3f8b5c10
+ *                   note:
+ *                     type: string
+ *                     example: Leader miền Bắc
+ *               - type: object
+ *                 required:
+ *                   - fullName
+ *                   - phoneNumber
+ *                 properties:
+ *                   fullName:
+ *                     type: string
+ *                     example: Nguyễn Văn B
+ *                   phoneNumber:
+ *                     type: string
+ *                     example: 0901234567
+ *                   note:
+ *                     type: string
+ *                     example: Hỗ trợ tuyến vịnh
  *     responses:
  *       200:
  *         description: Leader updated
@@ -108,7 +129,7 @@ router.patch("/tours/:id/leader", auth, adminOnly, updateLeader);
  *   post:
  *     tags:
  *       - Admin
- *     summary: Thêm sự kiện timeline (khởi hành/đến nơi/checkpoint/ghi chú/kết thúc)
+ *     summary: Thêm sự kiện timeline (departed/arrived/checkpoint/note/finished)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -117,13 +138,15 @@ router.patch("/tours/:id/leader", auth, adminOnly, updateLeader);
  *         required: true
  *         schema:
  *           type: string
+ *         description: Tour ObjectId
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [eventType]
+ *             required:
+ *               - eventType
  *             properties:
  *               eventType:
  *                 type: string
@@ -134,10 +157,10 @@ router.patch("/tours/:id/leader", auth, adminOnly, updateLeader);
  *                 example: "2025-12-01T07:30:00.000Z"
  *               place:
  *                 type: string
- *                 example: "Hà Nội"
+ *                 example: Hà Nội
  *               note:
  *                 type: string
- *                 example: "Xuất phát đúng giờ"
+ *                 example: Xuất phát đúng giờ
  *     responses:
  *       200:
  *         description: Timeline updated
@@ -150,7 +173,7 @@ router.post("/tours/:id/timeline", auth, adminOnly, addTimelineEvent);
  *   post:
  *     tags:
  *       - Admin
- *     summary: Thêm chi phí phát sinh cho tour (thời gian sẽ lấy theo server)
+ *     summary: Thêm chi phí phát sinh (occurredAt = thời gian server)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -159,29 +182,48 @@ router.post("/tours/:id/timeline", auth, adminOnly, addTimelineEvent);
  *         required: true
  *         schema:
  *           type: string
+ *         description: Tour ObjectId
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title, amount]
+ *             required:
+ *               - title
+ *               - amount
  *             properties:
  *               title:
  *                 type: string
- *                 example: "Vé tham quan Hang Sửng Sốt"
+ *                 example: Vé tham quan Hang Sửng Sốt
  *               amount:
  *                 type: number
  *                 example: 800000
  *               note:
  *                 type: string
- *                 example: "Phát sinh tại điểm A"
+ *                 example: Phát sinh tại điểm A
  *               visibleToCustomers:
  *                 type: boolean
  *                 example: true
  *     responses:
  *       201:
- *         description: Expense created (occurredAt = server time)
+ *         description: Expense created
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Danh sách chi phí của tour
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Tour ObjectId
+ *     responses:
+ *       200:
+ *         description: OK
  */
 router.post("/tours/:id/expenses", auth, adminOnly, createExpense);
 router.get("/tours/:id/expenses",  auth, adminOnly, listExpensesAdmin);
@@ -192,7 +234,7 @@ router.get("/tours/:id/expenses",  auth, adminOnly, listExpensesAdmin);
  *   patch:
  *     tags:
  *       - Admin
- *     summary: Sửa chi phí phát sinh
+ *     summary: Sửa chi phí phát sinh (không cho sửa occurredAt/addedBy)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -201,6 +243,7 @@ router.get("/tours/:id/expenses",  auth, adminOnly, listExpensesAdmin);
  *         required: true
  *         schema:
  *           type: string
+ *         description: Expense ObjectId
  *     requestBody:
  *       content:
  *         application/json:
@@ -221,6 +264,7 @@ router.get("/tours/:id/expenses",  auth, adminOnly, listExpensesAdmin);
  *         required: true
  *         schema:
  *           type: string
+ *         description: Expense ObjectId
  *     responses:
  *       200:
  *         description: Expense deleted

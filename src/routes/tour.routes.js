@@ -285,4 +285,5 @@ router.put("/:id", auth, adminOnly, updateTour);
  */
 router.delete("/:id", auth, adminOnly, deleteTour);
 
+
 export default router;

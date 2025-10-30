@@ -14,6 +14,8 @@ import { swaggerSpec } from "./config/swagger.js";
 import { registerConfirmOrRefundJob } from "./jobs/confirmOrRefund.job.js";
 
 import paymentRoutes from "./routes/payment.routes.js";
+import leaderAuthRoutes from "./routes/leader.auth.routes.js";
+import leaderRoutes from "./routes/leader.routes.js";
 
 const app = express();
 
@@ -40,7 +42,8 @@ app.use("/api/users", userRouter);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
+app.use("/api/leader", leaderAuthRoutes);
+app.use("/api/leader", leaderRoutes);
 
 app.set("trust proxy", true);
 app.use(express.json());  

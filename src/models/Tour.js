@@ -57,7 +57,7 @@ const tourSchema = new mongoose.Schema({
     enum: ["pending", "confirmed", "in_progress", "completed", "closed"], 
     default: "pending" 
   },
-
+  leaderId: { type: mongoose.Schema.Types.ObjectId, ref: "Leader", default: null },
   leader:     { type: LeaderSchema, default: null },
   timeline:   { type: [TimelineEventSchema], default: [] },
   departedAt: Date,
