@@ -3,7 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import passport from "./config/passport.js";
-
+import path from "node:path";
 import authRouter from "./routes/auth.routes.js";
 import tourRouter from "./routes/tour.routes.js";
 import adminRouter from "./routes/admin.routes.js";
@@ -20,6 +20,7 @@ import { registerConfirmOrRefundJob } from "./jobs/confirmOrRefund.job.js";
 
 const app = express();
 
+app.use("/uploads", express.static(path.resolve("uploads")));
 /* =========================
  *  CORS + BODY + COOKIES
  * ========================= */

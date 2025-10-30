@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   isActive: { type: String, enum: ["y","n"], default: "y" },
   status:   { type: String, enum: ["y","n"], default: "y" },
   google_id: { type: String },
+  avatar:      { type: String, default: "" },  
   createdDate: { type: Date, default: Date.now }
 }, { timestamps: false });
 
