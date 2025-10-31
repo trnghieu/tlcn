@@ -25,3 +25,13 @@ export const uploadAvatarMulter = multer({
   fileFilter,
   limits: { fileSize: 2 * 1024 * 1024 } // 2MB
 });
+
+
+export const uploadAvatarMem = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (_req, file, cb) => {
+    const ok = ["image/png","image/jpg","image/jpeg","image/webp"].includes(file.mimetype);
+    cb(ok ? null : new Error("Invalid image type"), ok);
+  }
+});

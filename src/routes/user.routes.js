@@ -4,8 +4,8 @@ import { getMyProfile, updateMyProfile, changePassword } from "../controllers/us
 import { passwordValidator } from "../utils/passwordValidator.js";
 import { body } from "express-validator";
 import { validate } from "../middleware/validate.js";
-import { uploadAvatarMulter } from "../middleware/upload.js";
-import { uploadMyAvatar } from "../controllers/user.controller.js";
+import { uploadAvatarMulter, uploadAvatarMem  } from "../middleware/upload.js";
+import { uploadMyAvatar, uploadMyAvatarCloud  } from "../controllers/user.controller.js";
 
 const VN_PHONE = /^(?:\+?84|0)(?:3|5|7|8|9)\d{8}$/;
 
@@ -124,4 +124,28 @@ router.put(
  *                 avatarUrl:  { type: string, example: "http://localhost:4000/uploads/avatars/..." }
  */
 router.post("/me/avatar", auth, uploadAvatarMulter.single("avatar"), uploadMyAvatar);
+
+/**
+ * @openapi
+ * /api/users/me/avatarcloud:
+ *   post:
+ *     tags: [Users]
+ *     summary: Upload avatar (Cloudinary)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Avatar updated
+ */
+router.post("/me/avatarcloud", auth, uploadAvatarMem.single("avatar"), uploadMyAvatarCloud);
 export default router;

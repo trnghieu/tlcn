@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { User } from "../models/User.js";
 import fs from "node:fs";
 import path from "node:path";
+import cloudinary from "../config/cloudinary.js"; 
 
 export const getMyProfile = async (req, res) => {
   try {
@@ -110,6 +111,46 @@ export const uploadMyAvatar = async (req, res) => {
       avatarPath: urlPath,
       avatarUrl: `${baseUrl(req)}${urlPath}`,  // tiện cho FE test
       user: safe
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const uploadMyAvatarCloud = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const me = await User.findById(req.user.id);
+    if (!me) return res.status(404).json({ message: "User not found" });
+
+    // Upload stream từ buffer
+    const folder = process.env.CLOUDINARY_FOLDER || "travela/avatars";
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: "image", overwrite: true },
+        (err, result) => (err ? reject(err) : resolve(result))
+      );
+      stream.end(req.file.buffer);
+    });
+
+    // Xoá ảnh cũ nếu có
+    if (me.avatarPublicId) {
+      try { await cloudinary.uploader.destroy(me.avatarPublicId); } catch {}
+    }
+
+    me.avatarUrl      = uploadResult.secure_url;
+    me.avatarPublicId = uploadResult.public_id;
+    await me.save();
+
+    const safe = me.toObject();
+    delete safe.password;
+
+    res.json({
+      message: "Avatar updated",
+      avatarUrl: me.avatarUrl,
+      publicId: me.avatarPublicId,
+      user: safe,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
