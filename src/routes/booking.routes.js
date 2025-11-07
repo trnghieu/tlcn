@@ -4,7 +4,8 @@ import {
   createBooking,
   onPaymentReceived,
   myBookings,
-  cancelBookingByUser
+  cancelBookingByUser,
+  getMyBookingDetail
 } from "../controllers/booking.controller.js";
 
 const router = Router();
@@ -172,6 +173,27 @@ router.post("/deposit/webhook", onPaymentReceived);
  *       401: { description: Unauthorized }
  */
 router.get("/me", auth, myBookings);
+
+/**
+ * @openapi
+ * /api/bookings/{code}:
+ *   get:
+ *     tags: [Booking]
+ *     summary: Xem chi tiết 1 booking của tôi
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: code
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Chi tiết booking
+ *       404:
+ *         description: Booking not found
+ */
+router.get("/:code", auth, getMyBookingDetail);
 
 /**
  * @openapi

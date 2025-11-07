@@ -61,7 +61,7 @@ export const createBooking = async (req, res) => {
     const priceAdult = tour.priceAdult ?? 0;
     const priceChild = tour.priceChild ?? Math.round(priceAdult * 0.6);
     const totalPrice = (Number(numAdults) * priceAdult) + (Number(numChildren) * priceChild);
-
+    
     const alreadyConfirmed = tour.status === "confirmed" || (tour.current_guests >= (tour.min_guests || 0));
     const depositRate   = alreadyConfirmed ? 1 : Number(process.env.BOOKING_DEPOSIT_RATE ?? 0.2);
     const depositAmount = Math.round(totalPrice * depositRate);
@@ -257,4 +257,54 @@ export const cancelBookingByUser = async (req, res) => {
   await bk.save();
 
   res.json({ message: "Canceled", booking: bk });
+};
+
+export const getMyBookingDetail = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const booking = await Booking.findOne({
+      code,
+      userId: req.user.id
+    })
+      .populate("tourId", "title destination startDate endDate images time priceAdult priceChild status itinerary")
+      .lean();
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    res.json({
+      code: booking.code,
+      status: booking.bookingStatus,
+      fullName: booking.fullName,
+      email: booking.email,
+      phoneNumber: booking.phoneNumber,
+      address: booking.address,
+      note: booking.note,
+      numAdults: booking.numAdults,
+      numChildren: booking.numChildren,
+      totalPrice: booking.totalPrice,
+      paidAmount: booking.paidAmount || 0,
+      depositAmount: booking.depositAmount || 0,
+      depositPaid: !!booking.depositPaid,
+      requireFullPayment: !!booking.requireFullPayment,
+      paymentMethod: booking.paymentMethod,
+      paymentRefs: booking.paymentRefs || [],
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt,
+      tour: booking.tourId ? {
+        id: booking.tourId._id,
+        title: booking.tourId.title,
+        destination: booking.tourId.destination,
+        startDate: booking.tourId.startDate,
+        endDate: booking.tourId.endDate,
+        time: booking.tourId.time,
+        status: booking.tourId.status,
+        images: booking.tourId.images || [],
+        itinerary: booking.tourId.itinerary || []
+      } : null
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };

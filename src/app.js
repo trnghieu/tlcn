@@ -12,8 +12,9 @@ import bookingRoutes from "./routes/booking.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import leaderAuthRoutes from "./routes/leader.auth.routes.js";
 import leaderRoutes from "./routes/leader.routes.js";
-
+import reviewRoutes from "./routes/review.routes.js";
 import swaggerUi from "swagger-ui-express";
+import chatRoutes from "./routes/chat.routes.js";
 import { swaggerSpec } from "./config/swagger.js";
 
 import { registerConfirmOrRefundJob } from "./jobs/confirmOrRefund.job.js";
@@ -87,7 +88,8 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/leader", leaderAuthRoutes);
 app.use("/api/leader", leaderRoutes);
-
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/chat", chatRoutes);
 /* =========================
  *  404 FALLBACK
  * ========================= */
