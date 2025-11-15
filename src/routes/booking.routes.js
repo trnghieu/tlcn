@@ -178,7 +178,7 @@ router.get("/me", auth, myBookings);
  * @openapi
  * /api/bookings/{code}:
  *   get:
- *     tags: [Booking]
+ *     tags: [Bookings]
  *     summary: Xem chi tiết 1 booking của tôi
  *     security:
  *       - bearerAuth: []

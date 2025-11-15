@@ -16,6 +16,8 @@ import reviewRoutes from "./routes/review.routes.js";
 import swaggerUi from "swagger-ui-express";
 import chatRoutes from "./routes/chat.routes.js";
 import { swaggerSpec } from "./config/swagger.js";
+import blogRouter from "./routes/blog.routes.js";
+
 
 import { registerConfirmOrRefundJob } from "./jobs/confirmOrRefund.job.js";
 
@@ -90,6 +92,7 @@ app.use("/api/leader", leaderAuthRoutes);
 app.use("/api/leader", leaderRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/blog", blogRouter);
 /* =========================
  *  404 FALLBACK
  * ========================= */
